@@ -16,12 +16,14 @@ module.exports = {
     ecmaVersion: 2018,
     sourceType: 'module',
   },
+
   plugins: ['jest'],
   rules: {
     'max-classes-per-file': 'off',
     'no-underscore-dangle': 'off',
     'no-console': 'off',
     'no-shadow': 'off',
+    "linebreak-style": "off" ,
     'no-restricted-syntax': [
       'error',
       'LabeledStatement',
