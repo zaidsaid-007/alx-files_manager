@@ -5,38 +5,54 @@ import dbClient from '../utils/db';
 
 class AuthController {
   static async getConnect(req, res) {
-    // Reject if 'Authorization' header doesn't exist
-    if (!req.headers.authorization) return res.status(401).send({ error: 'Unauthorized' });
+    try {
+      // Reject if 'Authorization' header doesn't exist
+      if (!req.headers.authorization) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
-    // Parse and decode header
-    const authPayload = req.headers.authorization.split(' ')[1];
-    const decodedAuthPayload = Buffer.from(authPayload, 'base64').toString('ascii');
-    const [email, clearPwd] = decodedAuthPayload.split(':');
+      // Parse and decode header
+      const authPayload = req.headers.authorization.split(' ')[1];
+      const decodedAuthPayload = Buffer.from(authPayload, 'base64').toString('ascii');
+      const [email, clearPwd] = decodedAuthPayload.split(':');
 
-    // Reject if user doesn't exist or password doesn't match
-    const user = await dbClient.users.findOne({ email });
-    if (!user || sha1(clearPwd) !== user.password) return res.status(401).send({ error: 'Unauthorized' });
+      // Reject if user doesn't exist or password doesn't match
+      const user = await dbClient.users.findOne({ email });
+      if (!user || sha1(clearPwd) !== user.password) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
-    // If user exists create token, cache auth and return token
-    const authToken = uuidv4();
-    const redisKey = `auth_${authToken}`;
+      // If user exists create token, cache auth and return token
+      const authToken = uuidv4();
+      const redisKey = `auth_${authToken}`;
 
-    redisClient.set(redisKey, user._id.toString(), 86400);
+      await redisClient.set(redisKey, user._id.toString(), 86400);
 
-    return res.status(200).send({ token: authToken });
+      return res.status(200).json({ token: authToken });
+    } catch (error) {
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
   }
 
   static async getDisconnect(req, res) {
-    if (!req.headers['x-token']) return res.status(401).send({ error: 'Unauthorized' });
+    try {
+      if (!req.headers['x-token']) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
-    const redisKey = `auth_${req.headers['x-token']}`;
-    const userId = await redisClient.get(redisKey);
+      const redisKey = `auth_${req.headers['x-token']}`;
+      const userId = await redisClient.get(redisKey);
 
-    if (!userId) return res.status(401).send({ error: 'Unauthorized' });
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
-    await redisClient.del(redisKey);
+      await redisClient.del(redisKey);
 
-    return res.status(204).end();
+      return res.status(204).end();
+    } catch (error) {
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
   }
 }
 

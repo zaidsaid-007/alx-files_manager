@@ -7,28 +7,33 @@ class UsersController {
   static async postNew(req, res) {
     const { email, password } = req.body;
 
-    if (!email) return res.status(400).send({ error: 'Missing email' });
-    if (!password) return res.status(400).send({ error: 'Missing password' });
+    if (!email) return res.status(400).json({ error: 'Missing email' });
+    if (!password) return res.status(400).json({ error: 'Missing password' });
 
-    if (await dbClient.users.findOne({ email })) return res.status(400).send({ error: 'Already exist' });
-
-    let user;
     try {
-      user = await dbClient.users.insertOne({ email, password: sha1(password) });
+      const existingUser = await dbClient.users.findOne({ email });
+      if (existingUser) return res.status(400).json({ error: 'Already exist' });
+
+      const hashedPassword = sha1(password);
+      const user = await dbClient.users.insertOne({ email, password: hashedPassword });
+
+      const userQueue = new Queue('userQueue');
+      userQueue.add({ userId: user.insertedId });
+
+      return res.status(201).json({ id: user.insertedId, email });
     } catch (err) {
-      return res.status(400).send({ error: `DB insert failed: ${err}` });
+      return res.status(500).json({ error: `Internal Server Error: ${err.message}` });
     }
-
-    const userQueue = Queue('userQueue');
-    userQueue.add({ userId: user.insertedId });
-
-    return res.status(201).send({ id: user.insertedId, email });
   }
 
   static async getMe(req, res) {
-    const result = await authUtils.checkAuth(req);
-    return res.status(result.status).send(result.payload);
+    try {
+      const result = await authUtils.checkAuth(req);
+      return res.status(result.status).json(result.payload);
+    } catch (err) {
+      return res.status(500).json({ error: `Internal Server Error: ${err.message}` });
+    }
   }
 }
 
-module.exports = UsersController;
+export default UsersController;

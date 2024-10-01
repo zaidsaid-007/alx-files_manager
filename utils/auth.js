@@ -3,17 +3,35 @@ import dbClient from './db';
 import redisClient from './redis';
 
 class AuthUtils {
-  async checkAuth(req) {
-    if (!req.headers['x-token']) return { status: 401, payload: { error: 'Unauthorized' } };
+  /**
+   * Checks the authentication of a request.
+   * @param {Object} req - The request object.
+   * @returns {Promise<Object>} The status and payload of the authentication check.
+   */
+  checkAuth = async (req) => {
+    try {
+      const token = req.headers['x-token'];
+      if (!token) {
+        return { status: 401, payload: { error: 'Unauthorized' } };
+      }
 
-    this.redisKey = `auth_${req.headers['x-token']}`;
-    this.userId = await redisClient.get(this.redisKey);
-    this.user = await dbClient.users.findOne({ _id: new ObjectId(this.userId) });
+      const redisKey = `auth_${token}`;
+      const userId = await redisClient.get(redisKey);
+      if (!userId) {
+        return { status: 401, payload: { error: 'Unauthorized' } };
+      }
 
-    if (!this.user) return { status: 401, payload: { error: 'Unauthorized' } };
-    return { status: 200, payload: { id: this.user._id, email: this.user.email } };
+      const user = await dbClient.users.findOne({ _id: new ObjectId(userId) });
+      if (!user) {
+        return { status: 401, payload: { error: 'Unauthorized' } };
+      }
+
+      return { status: 200, payload: { id: user._id, email: user.email } };
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      return { status: 500, payload: { error: 'Internal Server Error' } };
+    }
   }
 }
 
-const authUtils = new AuthUtils();
-module.exports = authUtils;
+export default new AuthUtils();
